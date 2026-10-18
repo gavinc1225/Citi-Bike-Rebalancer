@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import json
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +10,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.ensemble import HistGradientBoostingRegressor
 
+from pipeline.evidence import build_evidence
 from app.constants import (
     ARTIFACTS,
     DATA_CSV,
@@ -22,7 +20,6 @@ from app.constants import (
     MONTH_END_EXCL,
     MONTH_START,
     N_ROLES,
-    RESEARCH,
     SYSTEM_PREFIXES,
     TEST_END,
     TEST_START,
@@ -167,18 +164,6 @@ def build_system_series(trips: pd.DataFrame, panel: pd.DataFrame, gbm: pd.DataFr
     return daily, hourly
 
 
-def build_evidence() -> dict:
-    results = RESEARCH / "results.json"
-    script = RESEARCH / "experiments.py"
-    if not results.exists() and script.exists():
-        print("results.json missing; running research/experiments.py once ...")
-        subprocess.run([sys.executable, script.name], cwd=RESEARCH, check=True)
-    if not results.exists():
-        print("WARNING: research/results.json not found; evidence.json will be a placeholder")
-        return {"status": "missing", "note": "Add research/experiments.py and re-run `make data`."}
-    return json.loads(results.read_text())
-
-
 def write_json(name: str, obj) -> None:
     (ARTIFACTS / name).write_text(json.dumps(obj, indent=1))
 
@@ -204,7 +189,7 @@ def main() -> None:
     write_json("roles.json", roles)
     write_json("system_daily.json", daily)
     write_json("system_hourly.json", hourly)
-    write_json("evidence.json", build_evidence())
+    write_json("evidence.json", build_evidence(json.loads((ARTIFACTS / "stations.json").read_text())))
     print("roles:", stations["role"].value_counts().to_dict())
     print(f"artifacts written to {ARTIFACTS}")
 

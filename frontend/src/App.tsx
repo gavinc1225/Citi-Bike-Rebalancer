@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, isAbort } from "./api";
 import { ActivityTab, type PlaybackFrame } from "./components/ActivityTab";
 import { MapView, type MapFocus, type StationPaint } from "./components/MapView";
+import { EvidenceTab } from "./components/EvidenceTab";
 import { Legend } from "./components/Legend";
 import { Panel } from "./components/Panel";
 import { PlanTab } from "./components/PlanTab";
@@ -231,7 +232,7 @@ export default function App() {
           />
         )}
         {tab === "activity" && <ActivityTab initialDate={date} dark={dark} onPlayback={setPlayback} />}
-        {tab === "evidence" && <p>Evidence arrives in Phase 5.</p>}
+        {tab === "evidence" && <EvidenceTab />}
       </Panel>
 
       {selectedStation && (
