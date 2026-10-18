@@ -1,0 +1,208 @@
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hint {
+  margin: -6px 0 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.timeRow {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.input {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-weight: 500;
+  min-height: 24px;
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+}
+
+.field:focus-within {
+  outline: 2px solid var(--focus);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stateLine {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dotSurplus,
+.dotDeficit,
+.dotBalanced {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 6px;
+}
+
+.dotSurplus {
+  background: var(--surplus);
+  margin-left: 0;
+}
+
+.dotDeficit {
+  background: var(--deficit-soft);
+}
+
+.dotBalanced {
+  background: var(--balanced);
+}
+
+.note {
+  color: var(--text-2);
+}
+
+.primary {
+  border: 0;
+  background: var(--primary);
+  color: var(--on-primary);
+  border-radius: 10px;
+  min-height: 52px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.primary:disabled {
+  opacity: 0.35;
+}
+
+.secondary {
+  border: 1px solid var(--divider);
+  background: var(--bg);
+  border-radius: 10px;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--divider);
+  padding-top: 14px;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.summary {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.hindsight {
+  margin: -6px 0 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.empty {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 14px;
+}
+
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare th,
+.compare td {
+  text-align: left;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.compare thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.compare tbody th {
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.compare td {
+  font-weight: 600;
+}
+
+.altHead,
+.altCell {
+  color: var(--text-2);
+}
+
+.compare td.altCell {
+  font-weight: 500;
+}
+
+.why {
+  font-size: 14px;
+}
+
+.why summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.why ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--text-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

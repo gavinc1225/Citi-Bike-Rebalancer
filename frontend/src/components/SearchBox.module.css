@@ -1,0 +1,96 @@
+.wrap {
+  position: relative;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 0 4px 0 12px;
+  min-height: 48px;
+}
+
+.field:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+.icon {
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 12px 6px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.input:focus {
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--text-2);
+}
+
+.iconButton {
+  border: 0;
+  background: transparent;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.iconButton:hover {
+  background: var(--surface-2);
+}
+
+.list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  z-index: 5;
+}
+
+.option {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.option[aria-selected="true"] {
+  background: var(--surface);
+}
+
+.optionName {
+  font-weight: 500;
+}
+
+.optionMeta {
+  color: var(--text-2);
+  font-size: 13px;
+  white-space: nowrap;
+}

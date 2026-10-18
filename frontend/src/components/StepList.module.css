@@ -1,0 +1,63 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.step {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 18px 32px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--divider);
+  background: transparent;
+  text-align: left;
+  border-radius: 0;
+}
+
+.step:hover,
+.step[aria-current="step"] {
+  background: var(--surface);
+}
+
+.num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  text-align: right;
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.ride,
+.drive {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.main {
+  font-weight: 500;
+}
+
+.sub {
+  font-size: 13px;
+  color: var(--text-2);
+}
