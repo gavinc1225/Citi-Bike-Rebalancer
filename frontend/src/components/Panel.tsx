@@ -21,7 +21,7 @@ export function Panel({ tab, onTab, expanded, onExpanded, wide, children }: Prop
   return (
     <section
       className={`${styles.panel} ${expanded ? styles.expanded : ""} ${wide ? styles.wide : ""}`}
-      aria-label="Rebalancer"
+      aria-label="Citi Bike Rebalancer"
     >
       <button
         type="button"
@@ -33,7 +33,7 @@ export function Panel({ tab, onTab, expanded, onExpanded, wide, children }: Prop
         <span className={styles.grip} />
       </button>
       <header className={styles.header}>
-        <h1 className={styles.brand}>Rebalancer</h1>
+        <h1 className={styles.brand}>Citi Bike Rebalancer</h1>
         <div role="tablist" aria-label="Sections" className={styles.tabs}>
           {TABS.map((t) => (
             <button
