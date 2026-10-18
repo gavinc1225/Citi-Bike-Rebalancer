@@ -53,7 +53,17 @@ def dev() -> None:
         pass
     finally:
         for p in procs:
-            p.terminate()
+            stop_tree(p)
+
+
+def stop_tree(proc: subprocess.Popen) -> None:
+    """Stop a process and its children (uvicorn --reload spawns a worker that would keep :8000)."""
+    if proc.poll() is not None:
+        return
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+    else:
+        proc.terminate()
 
 
 TASKS = {"setup": setup, "data": data, "dev": dev, "test": test}
