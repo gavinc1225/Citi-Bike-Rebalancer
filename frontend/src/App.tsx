@@ -1,23 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, isAbort } from "./api";
+import { ActivityTab, type PlaybackFrame } from "./components/ActivityTab";
 import { MapView, type MapFocus, type StationPaint } from "./components/MapView";
 import { Legend } from "./components/Legend";
 import { Panel } from "./components/Panel";
 import { PlanTab } from "./components/PlanTab";
 import { StationSheet } from "./components/StationSheet";
 import { useToast } from "./components/Toasts";
-import { inTestWeek, isoAt } from "./lib/format";
+import { hourLabel, inTestWeek, isoAt } from "./lib/format";
 import { useDarkMode, useIsMobile, useReducedMotion } from "./lib/hooks";
 import type { GeocodeResult, LatLng, Mode, Model, PlanResponse, StateResponse, Station, Tab } from "./types";
 
 const EXPLAIN_ENABLED = import.meta.env.VITE_ENABLE_EXPLAIN === "true";
 const SERVICE_AREA = { minLat: 40.68, maxLat: 40.78, minLng: -74.12, maxLng: -74.0 };
-
-export interface Playback {
-  date: string;
-  hour: number;
-  net: Record<string, number[]>;
-}
 
 export default function App() {
   const toast = useToast();
@@ -46,7 +41,7 @@ export default function App() {
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [streets, setStreets] = useState<boolean | null>(null);
-  const [playback] = useState<Playback | null>(null);
+  const [playback, setPlayback] = useState<PlaybackFrame | null>(null);
   const planCtrl = useRef<AbortController | null>(null);
 
   const gbmOk = inTestWeek(date);
@@ -174,7 +169,7 @@ export default function App() {
   };
 
   const selectedStation = selected ? coords.get(selected) ?? null : null;
-  const legendTitle = playback ? `Actual · ${playback.hour}:00` : state?.model_used === "gbm" ? "Boosted forecast" : "Forecast";
+  const legendTitle = playback ? `Actual · ${hourLabel(playback.hour)}` : state?.model_used === "gbm" ? "Boosted forecast" : "Forecast";
 
   return (
     <main style={{ position: "absolute", inset: 0 }}>
@@ -235,7 +230,7 @@ export default function App() {
             onExplain={onExplain}
           />
         )}
-        {tab === "activity" && <p>Activity charts arrive in Phase 4.</p>}
+        {tab === "activity" && <ActivityTab initialDate={date} dark={dark} onPlayback={setPlayback} />}
         {tab === "evidence" && <p>Evidence arrives in Phase 5.</p>}
       </Panel>
 

@@ -364,6 +364,12 @@ export function MapView(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.plan]);
 
+  // --- keep the map centred in the area the panel leaves free
+  useEffect(() => {
+    mapRef.current?.easeTo({ padding: props.padding, duration: props.reducedMotion ? 0 : 400 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.padding]);
+
   // --- camera focus (tapping a step)
   useEffect(() => {
     const map = mapRef.current;
