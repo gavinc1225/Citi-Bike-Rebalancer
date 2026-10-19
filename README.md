@@ -1,83 +1,98 @@
 # Citi Bike Rebalancer
 
-CSCI 4150 (Intro to AI) team project. From where you are standing, the app tells you which Citi Bikes to
-move and where to take them, so that the most station imbalance gets fixed per minute you travel. It replays
-September 2026 Jersey City / Hoboken data: pick any time that month and the app forecasts which stations will
-pile up bikes (surplus) or run dry (deficit), then plans your moves.
+**Which bikes should I move, and where?** Pick a spot in Jersey City or Hoboken, and the app plans the moves that fix the most station imbalance per minute you travel.
 
-![Plan from Grove St PATH, Tue Sept 29, 7–10 am](docs/screenshot.jpg)
+![The app planning 10 moves from Grove St PATH](docs/img/plan.jpg)
 
-## Run it
+## How to use it
 
-Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20.19+ and npm. Put the trip file at
-`data/JC-202609-citibike-tripdata.csv` (from [the Citi Bike trip data bucket](https://s3.amazonaws.com/tripdata/index.html)).
+<table>
+<tr>
+<td width="33%" align="center"><img src="docs/img/search.jpg" alt="Search box with suggestions"><br><b>1. Say where you are</b><br>Search, use GPS, or tap the map</td>
+<td width="33%" align="center"><img src="docs/img/mobile.jpg" alt="Planned route on a phone" width="70%"><br><b>2. Find best moves</b><br>Follow the numbered route</td>
+<td width="33%" align="center"><img src="docs/img/station.jpg" alt="Station details sheet"><br><b>3. Tap any station</b><br>See its forecast and daily pattern</td>
+</tr>
+</table>
 
-```bash
-make setup   # backend venv (uv) + frontend packages (npm)
-make data    # offline pipeline: CSV -> artifacts/
-make dev     # backend on :8000, frontend on http://localhost:5173
-```
-
-No `make` (e.g. Windows)? The same targets run as `python tasks.py setup|data|dev|test`.
-`make test` runs the backend test suite.
+🔵 **Surplus**: too many bikes, pick one up  🔴 **Deficit**: too few, drop one off  ⚪ **Balanced**
 
 ## How it works
 
-```
-trips CSV ──► semantic layer ──► forecast ──► planner ──► map
-```
-
-1. **Trips** – 106,617 trips starting in Sept 2026 at 108 JC/HB stations
-   (`backend/pipeline/build.py`). Departures count every trip; arrivals drop the 331 trips with no end
-   station and the 274 that end in Manhattan.
-2. **Semantic layer** – an hourly station panel (departures, arrivals, net = arrivals − departures, day type
-   where weekends and Labor Day are "off-days") and station *roles* from k-means (k = 3) on normalized weekday
-   net-flow profiles: Commuter hub / Residential source / Mixed. Roles are for display and explanation only.
-3. **Forecast** (`app/forecast.py`) – the default is the historical mean by station × hour × day type
-   (Sept 2–23). A gradient-boosting toggle ("Boosted") is available for the Sept 24–30 test week. Each station
-   is labelled for the selected window: surplus if forecast net ≥ +3, deficit if ≤ −3, otherwise balanced.
-4. **Planner** (`app/planner.py`) – value-per-minute greedy pairing. Each move picks the surplus station
-   within a 1 km walk and the deficit station that maximize √min(surplus, deficit) / minutes, at 5 km/h
-   walking and 12 km/h riding (haversine), plus 1 minute per move. Nearest-first is shown for comparison.
-   Van mode (capacity 20, 2-opt reordering) is new and **untested**.
-5. **Map** (`frontend/`) – React + MapLibre on CARTO basemaps. Street paths come from the public OSRM demo
-   server; on any failure or a 1.5 s timeout the route falls back to straight dashed lines. Planning math
-   never uses OSRM.
-
-All planning, forecasting and labelling happens in Python; the frontend only displays it.
-
-The **Evidence** tab shows the numbers behind each design decision. The pipeline recomputes the forecaster
-MAE table (zero 4.81 / historical mean 2.39 / GBM 2.32) and the planner replay (272 vs 208 useful moves of
-300), and the tests assert both.
-
-## Notes and limits
-
-- **Sept 26–28 had a large, unexplained demand drop** (652 trips on Sun Sept 27). The app shows it on the
-  Activity tab instead of hiding it, and the forecasts miss it.
-- The OSRM demo server ignores the profile in the URL and returns car routes, so drawn paths follow car
-  routing (one-way streets) even for walking and riding legs.
-- No LLM is used. `POST /api/explain` is a stub that returns 501. The "Explain this plan" button only appears
-  when the frontend is started with `VITE_ENABLE_EXPLAIN=true`.
-- No API keys, paid services or telemetry.
-
-## Layout
-
-```
-backend/
-  pipeline/build.py      offline: CSV -> artifacts/*.parquet|json
-  pipeline/evidence.py   evidence.json for the Evidence tab
-  app/main.py            FastAPI
-  app/forecast.py        historical mean + GBM lookups
-  app/planner.py         value-per-minute, nearest-first, van mode
-  app/replay.py          the A2 planner replay (used by tests and evidence)
-  app/grounding.py       TF-IDF + alias table geocoder
-  app/aliases.json       landmark -> station_id
-  tests/
-frontend/src/            React app (components, api, styles)
-research/                A2 experiments script (experiments.py)
-artifacts/               generated by `make data`, gitignored
+```mermaid
+%%{init: {"theme": "neutral"}}%%
+flowchart LR
+    T[("106,617 trips<br>Sept 2026")] --> F["Forecast<br>bikes in / out per station"]
+    F --> L{"Label<br>±3 bikes"}
+    L -- surplus --> P["Planner<br>best move per minute"]
+    L -- deficit --> P
+    Y["Your location"] --> P
+    P --> M["Map + step list"]
 ```
 
-## Data
+## The AI inside
 
-Trip data comes from [Citi Bike's public trip data](https://s3.amazonaws.com/tripdata/index.html).
+![Each AI method, shown on the live app](docs/ai-methods-diagram.png)
+
+| # | Method | Type |
+|---|---|---|
+| 1 | Location search | Classical NLP: alias table + TF-IDF |
+| 2 | Demand forecast | Regression (historical average, gradient boosting) |
+| 3 | Surplus / deficit labels | Threshold classification |
+| 4 | Move planner | Greedy search |
+| 5 | Station roles | k-means clustering |
+| 6 | Hindsight check | Evaluation on held-out data |
+| 7 | Plan explanations | Templates (no LLM) |
+| 8 | LLM / RAG | Not used, on purpose |
+
+## Results
+
+```mermaid
+%%{init: {"xyChart": {"width": 640, "height": 260}, "themeVariables": {"xyChart": {"plotColorPalette": "#276EF1"}}}}%%
+xychart-beta
+    title "Useful moves out of 300 (higher is better)"
+    x-axis ["Value per minute (ours)", "Nearest first"]
+    y-axis "Useful moves" 0 --> 300
+    bar [272, 208]
+```
+
+```mermaid
+%%{init: {"xyChart": {"width": 640, "height": 260}, "themeVariables": {"xyChart": {"plotColorPalette": "#8F8F8F"}}}}%%
+xychart-beta
+    title "Forecast error, 7-10 am (lower is better)"
+    x-axis ["No change", "Average (default)", "Boosted", "Neural net"]
+    y-axis "Mean abs. error (bikes)" 0 --> 5
+    bar [4.81, 2.39, 2.32, 2.31]
+```
+
+## More screens
+
+<table>
+<tr>
+<td width="50%"><img src="docs/img/activity.jpg" alt="Activity tab with charts and map playback"><br><b>Activity</b>: daily trips, hourly pattern, and a playback of the whole day</td>
+<td width="50%"><img src="docs/img/evidence.jpg" alt="Evidence tab with result tables"><br><b>Evidence</b>: the numbers behind every design choice</td>
+</tr>
+</table>
+
+## Run it
+
+Needs Python 3.11+, [uv](https://docs.astral.sh/uv/) and Node 20+. Put the [trip data](https://s3.amazonaws.com/tripdata/index.html) at `data/JC-202609-citibike-tripdata.csv`.
+
+```bash
+make setup
+```
+
+```bash
+make data
+```
+
+```bash
+make dev
+```
+
+Then open http://localhost:5173. No `make`? Use `python tasks.py setup`, `data` and `dev` instead.
+
+## Good to know
+
+- Sept 26–28 had a big, unexplained drop in riders. The app shows it rather than hiding it.
+- Street paths come from the public OSRM server, which uses car routing. Planning uses straight-line distance.
+- Van mode is new and untested. No API keys, no paid services, no LLM calls.
