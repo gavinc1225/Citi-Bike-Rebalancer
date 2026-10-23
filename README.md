@@ -2,6 +2,8 @@
 
 **Which bikes should I move, and where?** Pick a spot in Jersey City or Hoboken, and the app plans the moves that fix the most station imbalance per minute you travel.
 
+**Live app: https://citi-bike-rebalancer.vercel.app**
+
 ![The app planning 10 moves from Grove St PATH](docs/img/plan.jpg)
 
 ## How to use it

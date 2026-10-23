@@ -11,7 +11,7 @@ import {
 } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
-import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useEffect, useRef } from "react";
 import { routeLegs, type Leg } from "../lib/osrm";
 import { MAP_STYLE, PALETTE, type MapPalette } from "../lib/palette";
@@ -44,7 +44,7 @@ interface Props {
   onRouteDrawn: (onStreets: boolean) => void;
 }
 
-// Vite's dep optimizer can't see maplibre's worker file, so point at it explicitly.
+// Bundle maplibre's worker (it imports a shared chunk) and point the map at it explicitly.
 setWorkerUrl(workerUrl);
 
 type FC = FeatureCollection;

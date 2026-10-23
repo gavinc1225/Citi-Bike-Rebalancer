@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from app import forecast
+from app.data import load
 from app.constants import DEFAULT_MAX_WALK_KM
 from app.planner import Move, count_useful, plan_nearest_first, plan_value_per_minute
 
@@ -25,15 +26,14 @@ def _totals(plans: list[list[Move]]) -> dict:
 
 
 def run_replay() -> dict:
-    st = forecast.load().stations
-    coords = {sid: (row.lat, row.lng) for sid, row in st.iterrows()}
+    coords = load().coords()
     useful = {"value_per_minute": 0, "nearest_first": 0}
     plans: dict[str, list[list[Move]]] = {"value_per_minute": [], "nearest_first": []}
     total = 0
     for day in TEST_WEEKDAYS:
         fc = forecast.forecast_window(datetime(2026, 9, day, 7), 3, "hist")
         need = fc.need()
-        actual = fc.table["actual_net"].astype(int).to_dict()
+        actual = fc.actual()
         for pt in USER_POINTS:
             vpm = plan_value_per_minute(pt, need, coords, MOVES, DEFAULT_MAX_WALK_KM)
             near = plan_nearest_first(pt, need, coords, MOVES)

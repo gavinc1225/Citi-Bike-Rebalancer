@@ -1,0 +1,4 @@
+# Runtime dependencies for the Vercel Python function (api/index.py).
+# The API reads backend/app/data/runtime.json.gz with the standard library; pandas, numpy and
+# scikit-learn are only needed offline for `make data` (see backend/pyproject.toml).
+fastapi==0.146.0

@@ -1,4 +1,4 @@
-data
+/data
 .venv
 artifacts/
 __pycache__/
@@ -8,3 +8,4 @@ frontend/dist/
 .env.local
 .DS_Store
 *.tsbuildinfo
+.vercel

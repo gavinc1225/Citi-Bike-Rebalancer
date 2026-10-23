@@ -7,14 +7,14 @@ from datetime import datetime
 import pytest
 
 from app import forecast
+from app.data import load
 from app.planner import plan_value_per_minute, plan_van, van_steps
 from app.replay import USER_POINTS, run_replay
 
 
 @pytest.fixture(scope="module")
 def coords():
-    st = forecast.load().stations
-    return {sid: (row.lat, row.lng) for sid, row in st.iterrows()}
+    return load().coords()
 
 
 @pytest.fixture(scope="module")

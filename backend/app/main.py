@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import math
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Literal
 
-import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app import forecast
-from app.constants import ARTIFACTS, DEFAULT_MAX_WALK_KM, LABEL_THRESHOLD
+from app.constants import DEFAULT_MAX_WALK_KM, LABEL_THRESHOLD
+from app.data import load
 from app.geo import haversine_km
 from app.grounding import default_grounder
 from app.planner import (
@@ -36,7 +35,7 @@ MODEL_LABEL = {"hist": "historical average", "gbm": "gradient boosting"}
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    forecast.load()  # fail fast and keep the first request quick
+    load()  # fail fast and keep the first request quick
     default_grounder()
     yield
 
@@ -56,17 +55,12 @@ def _check_at(at: datetime) -> datetime:
     return at
 
 
-def _artifact(name: str):
-    return json.loads((ARTIFACTS / name).read_text())
-
-
 def _coords() -> dict[str, tuple[float, float]]:
-    st = forecast.load().stations
-    return {sid: (row.lat, row.lng) for sid, row in st.iterrows()}
+    return load().coords()
 
 
 def _name(sid: str | None) -> str | None:
-    return None if sid is None else str(forecast.load().stations.at[sid, "name"])
+    return None if sid is None else str(load().by_id[sid]["name"])
 
 
 def _num(x: float) -> float | None:
@@ -74,14 +68,14 @@ def _num(x: float) -> float | None:
 
 
 def _window_text(hours: list[datetime]) -> str:
-    start, end = hours[0], hours[-1] + pd.Timedelta(hours=1)
+    start, end = hours[0], hours[-1] + timedelta(hours=1)
     fmt = lambda t: t.strftime("%I %p").lstrip("0").lower().replace(" ", " ")  # noqa: E731
     return f"{start:%a %b} {start.day}, {fmt(start)}–{fmt(end)}"
 
 
 @app.get("/api/stations")
 def stations() -> list[dict]:
-    return _artifact("stations.json")
+    return load().stations
 
 
 @app.get("/api/state")
@@ -97,13 +91,13 @@ def state(
             "forecast_net": _num(r.net),
             "forecast_dep": _num(r.dep),
             "forecast_arr": _num(r.arr),
-            "need": int(r.need),
+            "need": r.need,
             "label": r.label,
-            "actual_net": None if pd.isna(r.actual_net) else int(r.actual_net),
+            "actual_net": r.actual_net,
         }
-        for sid, r in fc.table.iterrows()
+        for sid, r in fc.rows.items()
     ]
-    counts = fc.table["label"].value_counts().to_dict()
+    counts = fc.counts()
     return {
         "at": fc.hours[0].isoformat(),
         "window": window,
@@ -112,32 +106,37 @@ def state(
         "gbm_available": forecast.gbm_available(fc.hours),
         "has_actual": fc.has_actual,
         "threshold": LABEL_THRESHOLD,
-        "counts": {k: int(counts.get(k, 0)) for k in ("surplus", "deficit", "balanced")},
+        "counts": counts,
         "stations": rows,
     }
 
 
 @app.get("/api/station/{station_id}/profile")
 def station_profile(station_id: str) -> dict:
-    a = forecast.load()
-    if station_id not in a.stations.index:
+    b = load()
+    if station_id not in b.by_id:
         raise HTTPException(404, f"unknown station {station_id}")
-    hist = a.hist.loc[station_id].reset_index()
 
     def series(offday: int) -> list[dict]:
-        part = hist[hist["offday"] == offday].set_index("hour").reindex(range(24), fill_value=0.0)
-        return [{"hour": h, "dep": _num(r.dep), "arr": _num(r.arr), "net": _num(r.net)} for h, r in part.iterrows()]
+        return [
+            {"hour": h, "dep": _num(dep), "arr": _num(arr), "net": _num(net)}
+            for h, (dep, arr, net) in enumerate(b.hist[station_id][offday])
+        ]
 
-    panel = a.panel.loc[station_id]
-    daily = panel.groupby(panel.index.date)["dep"].sum()
-    info = a.stations.loc[station_id]
+    deps = b.dep[station_id]
+    days = b.hours // 24
+    daily = [
+        {"date": (b.start + timedelta(days=d)).date().isoformat(), "dep": sum(deps[d * 24 : d * 24 + 24])}
+        for d in range(days)
+    ]
+    info = b.by_id[station_id]
     return {
         "id": station_id,
         "name": info["name"],
         "role": info["role"],
         "weekday": series(0),
         "offday": series(1),
-        "daily_departures": [{"date": d.isoformat(), "dep": int(n)} for d, n in daily.items()],
+        "daily_departures": daily,
     }
 
 
@@ -146,35 +145,32 @@ def day(date_: date = Query(date(2026, 9, 29), alias="date")) -> dict:
     """Actual hourly net flow per station for one day (map playback)."""
     if not REPLAY_START.date() <= date_ < REPLAY_END.date():
         raise HTTPException(422, "date must be in September 2026")
-    a = forecast.load()
-    panel = a.panel.reset_index()
-    rows = panel[panel["ts"].dt.date == date_]
-    net = rows.pivot(index="station_id", columns="ts", values="net")
-    dep = rows.groupby(rows["ts"].dt.hour)["dep"].sum()
+    b = load()
+    first = b.hour_index(datetime.combine(date_, datetime.min.time()))
+    assert first is not None
+    hours = range(first, first + 24)
     return {
         "date": date_.isoformat(),
-        "net": {sid: [int(v) for v in vals] for sid, vals in net.iterrows()},
-        "system_trips": [int(dep.get(h, 0)) for h in range(24)],
+        "net": {sid: [b.arr[sid][i] - b.dep[sid][i] for i in hours] for sid in b.ids},
+        "system_trips": [sum(b.dep[sid][i] for sid in b.ids) for i in hours],
     }
 
 
 @app.get("/api/geocode")
 def geocode(q: str = Query(..., min_length=1, max_length=100)) -> list[dict]:
-    st = forecast.load().stations
-    return [
-        {**r, "lat": float(st.at[r["id"], "lat"]), "lng": float(st.at[r["id"], "lng"])}
-        for r in default_grounder().search(q, k=3)
-    ]
+    st = load().by_id
+    return [{**r, "lat": st[r["id"]]["lat"], "lng": st[r["id"]]["lng"]} for r in default_grounder().search(q, k=3)]
 
 
 @app.get("/api/evidence")
 def evidence() -> dict:
-    return _artifact("evidence.json")
+    return load().evidence
 
 
 @app.get("/api/system")
 def system() -> dict:
-    return {"daily": _artifact("system_daily.json"), "hourly": _artifact("system_hourly.json")}
+    b = load()
+    return {"daily": b.daily, "hourly": b.hourly}
 
 
 # ------------------------------------------------------------------------- planning
@@ -218,7 +214,7 @@ def _rider_plan(req: PlanRequest, fc: forecast.WindowForecast, need: dict[str, i
     steps, near_steps = rider_steps(vpm, need), rider_steps(near, need)
     totals, near_totals = _totals(steps), _totals(near_steps)
 
-    actual = fc.table["actual_net"].astype(int).to_dict() if fc.has_actual else None
+    actual = fc.actual() if fc.has_actual else None
     if actual is not None:
         totals["useful_on_actual"] = count_useful(vpm, actual)
         near_totals["useful_on_actual"] = count_useful(near, actual)
@@ -279,10 +275,10 @@ def _van_plan(req: PlanRequest, fc: forecast.WindowForecast, need: dict[str, int
 
 
 def _forecast_line(fc: forecast.WindowForecast) -> str:
-    c = fc.table["label"].value_counts()
+    c = fc.counts()
     return (
         f"Forecast ({MODEL_LABEL[fc.model_used]}) for {_window_text(fc.hours)}: "
-        f"{c.get('surplus', 0)} stations in surplus, {c.get('deficit', 0)} in deficit "
+        f"{c['surplus']} stations in surplus, {c['deficit']} in deficit "
         f"(±{LABEL_THRESHOLD} bikes)."
     )
 

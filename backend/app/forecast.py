@@ -1,40 +1,15 @@
-"""Window forecasts from the precomputed artifacts (historical mean default, GBM optional)."""
+"""Window forecasts from the runtime bundle (historical mean default, GBM optional). Standard library only."""
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from functools import lru_cache
 from typing import Literal
 
-import numpy as np
-import pandas as pd
-
-from app.constants import ARTIFACTS, LABEL_THRESHOLD, TEST_END, TEST_START, is_offday
+from app.constants import LABEL_THRESHOLD, TEST_END, TEST_START, is_offday
+from app.data import load
 
 Model = Literal["hist", "gbm"]
-
-
-@dataclass(frozen=True)
-class Artifacts:
-    stations: pd.DataFrame  # indexed by id
-    panel: pd.DataFrame  # indexed by (station_id, ts)
-    hist: pd.DataFrame  # indexed by (station_id, hour, offday)
-    gbm: pd.DataFrame  # indexed by (station_id, ts)
-
-
-@lru_cache(maxsize=1)
-def load() -> Artifacts:
-    missing = [n for n in ("stations.json", "panel.parquet", "hist_mean.parquet", "gbm_forecast.parquet")
-               if not (ARTIFACTS / n).exists()]
-    if missing:
-        raise RuntimeError(f"missing artifacts {missing}; run `make data` first")
-    stations = pd.DataFrame(json.loads((ARTIFACTS / "stations.json").read_text())).set_index("id")
-    panel = pd.read_parquet(ARTIFACTS / "panel.parquet").set_index(["station_id", "ts"]).sort_index()
-    hist = pd.read_parquet(ARTIFACTS / "hist_mean.parquet").set_index(["station_id", "hour", "offday"]).sort_index()
-    gbm = pd.read_parquet(ARTIFACTS / "gbm_forecast.parquet").set_index(["station_id", "ts"]).sort_index()
-    return Artifacts(stations, panel, hist, gbm)
 
 
 def window_hours(at: datetime, window: int) -> list[datetime]:
@@ -55,51 +30,73 @@ def label_for(net: float) -> str:
 
 
 @dataclass
+class StationForecast:
+    dep: float
+    arr: float
+    net: float
+    need: int  # round(net): positive = surplus to pick up, negative = deficit to fill
+    label: str
+    actual_net: int | None
+
+
+@dataclass
 class WindowForecast:
     hours: list[datetime]
     model_used: Model
-    table: pd.DataFrame  # index station id; columns dep, arr, net, need, label, actual_net
+    rows: dict[str, StationForecast]
     has_actual: bool
 
     def need(self) -> dict[str, int]:
-        return self.table["need"].astype(int).to_dict()
+        return {sid: r.need for sid, r in self.rows.items()}
+
+    def actual(self) -> dict[str, int]:
+        return {sid: r.actual_net or 0 for sid, r in self.rows.items()}
+
+    def counts(self) -> dict[str, int]:
+        out = {"surplus": 0, "deficit": 0, "balanced": 0}
+        for r in self.rows.values():
+            out[r.label] += 1
+        return out
 
 
-def hist_window(stations: pd.Index, hours: list[datetime]) -> pd.DataFrame:
-    a = load()
-    total = pd.DataFrame(0.0, index=stations, columns=["dep", "arr", "net"])
+def _hist_window(sid: str, hours: list[datetime]) -> list[float]:
+    b = load()
+    total = [0.0, 0.0, 0.0]
     for h in hours:
-        key = pd.MultiIndex.from_product([stations, [h.hour], [int(is_offday(h.date()))]])
-        total += a.hist.reindex(key)[["dep", "arr", "net"]].fillna(0.0).to_numpy()
+        dep, arr, net = b.hist[sid][int(is_offday(h.date()))][h.hour]
+        total = [total[0] + dep, total[1] + arr, total[2] + net]
     return total
 
 
-def gbm_window(stations: pd.Index, hours: list[datetime]) -> pd.DataFrame:
-    a = load()
-    key = pd.MultiIndex.from_product([stations, pd.to_datetime(hours)])
-    rows = a.gbm.reindex(key)[["dep_gbm", "arr_gbm", "net_gbm"]].fillna(0.0)
-    out = rows.groupby(level=0).sum().reindex(stations)
-    out.columns = ["dep", "arr", "net"]
-    return out
+def _gbm_window(sid: str, hours: list[datetime]) -> list[float]:
+    b = load()
+    total = [0.0, 0.0, 0.0]
+    for h in hours:
+        i = b.gbm_index(h)
+        if i is not None:
+            dep, arr, net = b.gbm[sid][i]
+            total = [total[0] + dep, total[1] + arr, total[2] + net]
+    return total
 
 
-def actual_window(stations: pd.Index, hours: list[datetime]) -> pd.Series | None:
-    a = load()
-    key = pd.MultiIndex.from_product([stations, pd.to_datetime(hours)])
-    rows = a.panel.reindex(key)["net"]
-    if rows.isna().any():  # window leaves the month we have data for
+def _actual_window(sid: str, hours: list[datetime]) -> int | None:
+    b = load()
+    idx = [b.hour_index(h) for h in hours]
+    if any(i is None for i in idx):  # window leaves the month we have data for
         return None
-    return rows.groupby(level=0).sum().reindex(stations)
+    return sum(b.arr[sid][i] - b.dep[sid][i] for i in idx)  # type: ignore[index]
 
 
 def forecast_window(at: datetime, window: int, model: Model = "hist") -> WindowForecast:
-    a = load()
-    stations = a.stations.index
     hours = window_hours(at, window)
     model_used: Model = "gbm" if model == "gbm" and gbm_available(hours) else "hist"
-    table = gbm_window(stations, hours) if model_used == "gbm" else hist_window(stations, hours)
-    table["need"] = np.round(table["net"]).astype(int)
-    table["label"] = table["net"].map(label_for)
-    actual = actual_window(stations, hours)
-    table["actual_net"] = actual if actual is not None else np.nan
-    return WindowForecast(hours, model_used, table, actual is not None)
+    window_fn = _gbm_window if model_used == "gbm" else _hist_window
+    rows: dict[str, StationForecast] = {}
+    has_actual = True
+    for sid in load().ids:
+        dep, arr, net = window_fn(sid, hours)
+        actual = _actual_window(sid, hours)
+        has_actual = has_actual and actual is not None
+        # round() is round-half-to-even, the same as the numpy rounding the A2 experiments used.
+        rows[sid] = StationForecast(dep, arr, net, int(round(net)), label_for(net), actual)
+    return WindowForecast(hours, model_used, rows, has_actual)

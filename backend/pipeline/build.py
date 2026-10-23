@@ -11,6 +11,7 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import HistGradientBoostingRegressor
 
 from pipeline.evidence import build_evidence
+from pipeline.runtime_bundle import build_bundle, write_bundle
 from app.constants import (
     ARTIFACTS,
     DATA_CSV,
@@ -189,7 +190,12 @@ def main() -> None:
     write_json("roles.json", roles)
     write_json("system_daily.json", daily)
     write_json("system_hourly.json", hourly)
-    write_json("evidence.json", build_evidence(json.loads((ARTIFACTS / "stations.json").read_text())))
+    # The API reads only the runtime bundle; evidence runs the replay through the API code, so it
+    # needs a bundle first and is then folded into it.
+    write_bundle(build_bundle(stations, panel, hist, gbm, daily, hourly, None))
+    evidence = build_evidence(json.loads((ARTIFACTS / "stations.json").read_text()))
+    write_json("evidence.json", evidence)
+    write_bundle(build_bundle(stations, panel, hist, gbm, daily, hourly, evidence))
     print("roles:", stations["role"].value_counts().to_dict())
     print(f"artifacts written to {ARTIFACTS}")
 
