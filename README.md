@@ -2,9 +2,11 @@
 
 **Which bikes should I move, and where?** Pick a spot in Jersey City or Hoboken, and the app plans the moves that fix the most station imbalance per minute you travel.
 
-**Live app: https://citi-bike-rebalancer.vercel.app**
+### 👉 [Open the app: citi-bike-rebalancer.vercel.app](https://citi-bike-rebalancer.vercel.app)
 
-![The app planning 10 moves from Grove St PATH](docs/img/plan.jpg)
+Nothing to install. It works in any browser, on desktop or phone.
+
+[![The app planning 10 moves from Grove St PATH](docs/img/plan.jpg)](https://citi-bike-rebalancer.vercel.app)
 
 ## How to use it
 
@@ -75,7 +77,22 @@ xychart-beta
 </tr>
 </table>
 
-## Run it
+## How it's hosted
+
+```mermaid
+%%{init: {"theme": "neutral"}}%%
+flowchart LR
+    G["Push to main<br>on GitHub"] --> V["Vercel builds<br>automatically"]
+    V --> W["Map + charts<br>(static site)"]
+    V --> A["/api/*<br>(Python function)"]
+    W --> L(["citi-bike-rebalancer.vercel.app"])
+    A --> L
+```
+
+The app is hosted on Vercel and redeploys itself on every push to `main`. The API is a small Python function that reads a pre-built data file (`backend/app/runtime_data/runtime.json.gz`), so the live site needs no database and no setup.
+
+<details>
+<summary><b>For developers: rebuild the data or run it on your own machine</b></summary>
 
 Needs Python 3.11+, [uv](https://docs.astral.sh/uv/) and Node 20+. Put the [trip data](https://s3.amazonaws.com/tripdata/index.html) at `data/JC-202609-citibike-tripdata.csv`.
 
@@ -91,7 +108,9 @@ make data
 make dev
 ```
 
-Then open http://localhost:5173. No `make`? Use `python tasks.py setup`, `data` and `dev` instead.
+`make data` rebuilds the data file; commit it and push to update the live site. `make dev` runs a local copy at http://localhost:5173. No `make`? Use `python tasks.py setup`, `data` and `dev`.
+
+</details>
 
 ## Good to know
 
